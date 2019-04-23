@@ -798,10 +798,14 @@ public final class Gram extends Iced<Gram> {
   public final void addRow(DataInfo.Row row, double[][] w, int nclass, int coeffPClass, int numCoeffOffset, 
                            boolean hasIntercept, double[][] xtx) {
     ArrayUtils.mult(xtx, 0.0);
-    if (row.numIds==null)
-      addRowDense(row, w, nclass, coeffPClass, numCoeffOffset, hasIntercept, xtx);
-    else
-      addRowSparse(row, w, nclass, coeffPClass, numCoeffOffset, hasIntercept, xtx);
+    addRowDense(row, w, nclass, coeffPClass, numCoeffOffset, hasIntercept, xtx, row.numIds!=null);
+  }
+
+  public final void addRow(DataInfo.Row row, double[][] w, int nclass, int coeffPClass, int numCoeffOffset,
+                           boolean hasIntercept, double[][] xtx, int[][] activeCols) {
+    ArrayUtils.mult(xtx, 0.0);
+    addRowDense(row, w, nclass, coeffPClass, numCoeffOffset, hasIntercept, xtx, activeCols, row.numIds!=null);
+
   }
 
   /***
@@ -815,7 +819,60 @@ public final class Gram extends Iced<Gram> {
    * @param hasIntercept
    */
   public final void addRowDense(DataInfo.Row row, double[][] w, int nclass, int coeffPClass, int numCoeffOffset,
-                                boolean hasIntercept, double[][] xtx) {
+                                boolean hasIntercept, double[][] xtx, boolean sparse) {
+    if (sparse)
+      generateXTXSparse(xtx, row, coeffPClass, numCoeffOffset);
+    else
+      generateXtX(xtx, coeffPClass, row, numCoeffOffset);
+
+    // xtx generation checkout out with my manual calculation
+    for (int classInd = 0; classInd < nclass; classInd++) {
+      for (int classInd2 = 0; classInd2 <= classInd; classInd2++) {
+        for (int rpredInd = 0; rpredInd < coeffPClass; rpredInd++) {
+          int rowInd = classInd * coeffPClass + rpredInd;
+          int maxLen = _xx[rowInd].length;
+          for (int cpredInd = 0; cpredInd < coeffPClass; cpredInd++) {
+            int colInd = classInd2 * coeffPClass + cpredInd;
+            if (colInd >=  maxLen)
+              continue;
+            _xx[rowInd][colInd] += w[classInd][classInd2] * xtx[rpredInd][cpredInd];
+          }
+        }
+      }
+    }
+  }
+
+  public final void addRowDense(DataInfo.Row row, double[][] w, int nclass, int coeffPClass, int numCoeffOffset,
+                                boolean hasIntercept, double[][] xtx, int[][] activeCols, boolean sparse) {
+    if (sparse)
+      generateXTXSparse(xtx, row, coeffPClass, numCoeffOffset);
+    else
+      generateXtX(xtx, coeffPClass, row, numCoeffOffset);
+    int rowOffset = 0;
+    int colOffset = 0;
+    for (int classInd = 0; classInd < nclass; classInd++) {         // treat this as the row
+      for (int classInd2 = 0; classInd2 <= classInd; classInd2++) { // treat this as the column
+        int[] activeColsRow = activeCols[classInd];
+        int[] activeColsCol = activeCols[classInd2];
+        for (int rpredInd:activeColsRow) {
+      //  for (int rpredInd = 0; rpredInd < coeffPClass; rpredInd++) {
+          int rowInd = rowOffset + rpredInd;
+          int maxLen = _xx[rowInd].length;
+          for (int cpredInd:activeColsCol) {
+         // for (int cpredInd = 0; cpredInd < coeffPClass; cpredInd++) {
+            int colInd = colOffset + cpredInd;
+            if (colInd >=  maxLen)
+              continue;
+            _xx[rowInd][colInd] += w[classInd][classInd2] * xtx[rpredInd][cpredInd];
+          }
+        }
+        rowOffset += activeCols[classInd].length;
+        colOffset += activeCols[classInd2].length;
+      }
+    }
+  }
+  
+  public void generateXtX(double[][] xtx, int coeffPClass, DataInfo.Row row, int numCoeffOffset) {
     int numOff = _denseN; // start of numerical columns
     int interceptInd = coeffPClass - 1;
     int numColStart = row.nBins;  // number of enum columns
@@ -859,26 +916,10 @@ public final class Gram extends Iced<Gram> {
         xtx[rInd][cInd] = xtx[cInd][rInd];
       }
     }
-    // xtx generation checkout out with my manual calculation
-    for (int classInd = 0; classInd < nclass; classInd++) {
-      for (int classInd2 = 0; classInd2 <= classInd; classInd2++) {
-        for (int rpredInd = 0; rpredInd < coeffPClass; rpredInd++) {
-          int rowInd = classInd * coeffPClass + rpredInd;
-          int maxLen = _xx[rowInd].length;
-          for (int cpredInd = 0; cpredInd < coeffPClass; cpredInd++) {
-            int colInd = classInd2 * coeffPClass + cpredInd;
-            if (colInd >=  maxLen)
-              continue;
-            _xx[rowInd][colInd] += w[classInd][classInd2] * xtx[rpredInd][cpredInd];
-          }
-        }
-      }
-    }
+    
   }
-
-  public final void addRowSparse(DataInfo.Row row, double[][] w, int nclass, int coeffPClass, int numCoeffOffset, 
-                                 boolean hasIntercept, double[][] xtx) {
-
+  
+  public void generateXTXSparse(double[][] xtx, DataInfo.Row row, int coeffPClass, int numCoeffOffset) {
     int numOff = _denseN; // start of numerical columns
     int interceptInd = coeffPClass-1;
     int numColStart = row.nBins;  // number of enum columns
@@ -926,22 +967,8 @@ public final class Gram extends Iced<Gram> {
         xtx[rInd][cInd] = xtx[cInd][rInd];
       }
     }
-    // xtx generation checkout out with my manual calculation
-    for (int classInd = 0; classInd < nclass; classInd++) {
-      for (int classInd2 = 0; classInd2 <= classInd; classInd2++) {
-        for (int rpredInd = 0; rpredInd < coeffPClass; rpredInd++) {
-          int rowInd = classInd * coeffPClass + rpredInd;
-          int maxLen = _xx[rowInd].length;
-          for (int cpredInd = 0; cpredInd < coeffPClass; cpredInd++) {
-            int colInd = classInd2 * coeffPClass + cpredInd;
-            if (colInd >=  maxLen)
-              continue;
-            _xx[rowInd][colInd] += w[classInd][classInd2] * xtx[rpredInd][cpredInd];
-          }
-        }
-      }
-    }
   }
+  
 
   public final void   addRowDense(DataInfo.Row row, double w) {
     final int intercept = _hasIntercept?1:0;

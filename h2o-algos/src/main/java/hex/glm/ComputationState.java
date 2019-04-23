@@ -725,9 +725,15 @@ public final class ComputationState {
   protected GramXY computeNewGram(DataInfo activeData, double [] beta, GLMParameters.Solver s){
     double obj_reg = _parms._obj_reg;
     if(_glmw == null) _glmw = new GLMModel.GLMWeightsFun(_parms);
-    GLMTask.GLMIterationTask gt = new GLMTask.GLMIterationTask(_job._key, activeData, _glmw, beta,_activeClass, 
+    GLMTask.GLMIterationTask gt = _parms._solver.equals(GLMParameters.Solver.IRLSM_SPEEDUP2)?
+            new GLMTask.GLMIterationTask(_job._key, activeData, _glmw, beta,_activeClass, 
             s.equals(GLMParameters.Solver.IRLSM_SPEEDUP)||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP_NO_ADMM)
-                    ||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP2), _activeColsAll).doAll(activeData._adaptedFrame);
+                    ||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP2), _activeColsAll, 
+            _ginfo._gradient.length/_nclasses).doAll(activeData._adaptedFrame):
+            new GLMTask.GLMIterationTask(_job._key, activeData, _glmw, beta,_activeClass,
+                    s.equals(GLMParameters.Solver.IRLSM_SPEEDUP)||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP_NO_ADMM)
+                            ||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP2), null,
+                    _ginfo._gradient.length/_nclasses).doAll(activeData._adaptedFrame);
     gt._gram.mul(obj_reg);
     ArrayUtils.mult(gt._xy,obj_reg);
     int [] activeCols = activeData.activeCols(); // the active columns here refer to the predictors....

@@ -1867,7 +1867,7 @@ public abstract class GLMTask  {
     }
 
     public  GLMIterationTask(Key jobKey, DataInfo dinfo, GLMWeightsFun glmw, double [] beta, int c, boolean speedup,
-                             int[][] allactivecols) {
+                             int[][] allactivecols, int coeffpclass) {
       super(null,dinfo,jobKey);
       _beta = beta; // beta contains all class coeffs stacked up for IRLSM_SPEEDUP multinomial
       _ymu = null;
@@ -1875,6 +1875,7 @@ public abstract class GLMTask  {
       _c = c;
       _multiClassSpeedup=speedup;
       _activeColsAll = allactivecols;
+      _coeffPClass = coeffpclass;
     }
 
     @Override public boolean handlesSparseData(){return true;}
@@ -1897,7 +1898,6 @@ public abstract class GLMTask  {
           _sparseOffset = GLM.sparseOffset(_beta, _dinfo);
       }
       if (_multiClassSpeedup) {
-        _coeffPClass = _beta.length/_c;
         _hessian = new double[_c][];  // symmetric matrix, only need half of the elements
         for (int classInd=0; classInd < _c; classInd++)
           _hessian[classInd] = new double[classInd+1];
@@ -1905,8 +1905,14 @@ public abstract class GLMTask  {
         _etas = new double[_c];
         _probs = new double[_c];
         _betaOneClass = new double[_beta.length/_c];
-        _beta_multinomial = new double[_c][_coeffPClass];
-        ArrayUtils.convertTo2DMatrix(_beta, _beta_multinomial); // _beta_multinomial has nclass rows
+        _beta_multinomial = new double[_c][];
+        for (int classInd = 0; classInd < _c; classInd++) {
+          _beta_multinomial[classInd] = new double[_activeColsAll[classInd].length];
+        }
+        if (_activeColsAll==null)
+          ArrayUtils.convertTo2DMatrix(_beta, _beta_multinomial);
+        else
+          ArrayUtils.convertTo2DMatrix(_beta, _beta_multinomial, _activeColsAll); // _beta_multinomial has nclass rows
         _numPredColumns = _dinfo._cats+_dinfo._nums;  // number of predictors
         _numCoeffIndOffset = _dinfo._nums==0?0:_dinfo._numOffsets[0];
         _gram._diag = new double[0];  // avoid NPE later
@@ -1990,30 +1996,64 @@ public abstract class GLMTask  {
         _wz[rowInd] = r.weight * _wz[rowInd];
       }
       // now generate _xy for enum columns
-      for (int i = 0; i < r.nBins; ++i) {
-        for (int classInd=0; classInd<_c; classInd++) { // update _xy for each class, they are stacked over class
-          _xy[r.binIds[i]+classInd*_coeffPClass] += _wz[classInd];
+      if (_activeColsAll==null) {
+        for (int i = 0; i < r.nBins; ++i) {
+          for (int classInd = 0; classInd < _c; classInd++) { // update _xy for each class, they are stacked over class
+            _xy[r.binIds[i] + classInd * _coeffPClass] += _wz[classInd];
+          }
         }
-      }
-      // now generate _xy for numerical columns
-      for (int i = 0; i < r.nNums; ++i) {
-        int id = r.numIds==null?(i+numStart):r.numIds[i];
-        double val = r.numVals[i];
-        for (int classInd=0; classInd<_c; classInd++) { // update _xy for each class, they are stacked over class
-          _xy[id+classInd*_coeffPClass] += _wz[classInd]*val;
+        // now generate _xy for numerical columns
+        for (int i = 0; i < r.nNums; ++i) {
+          int id = r.numIds == null ? (i + numStart) : r.numIds[i];
+          double val = r.numVals[i];
+          for (int classInd = 0; classInd < _c; classInd++) { // update _xy for each class, they are stacked over class
+            _xy[id + classInd * _coeffPClass] += _wz[classInd] * val;
+          }
         }
-      }
-      if (_dinfo._intercept) { // add intercept term 
-        for (int classInd = 0; classInd < _c; classInd++) {
-          _xy[(1+classInd)*_coeffPClass-1] += _wz[classInd];
+        if (_dinfo._intercept) { // add intercept term 
+          for (int classInd = 0; classInd < _c; classInd++) {
+            _xy[(1 + classInd) * _coeffPClass - 1] += _wz[classInd];
+          }
         }
+        _gram.addRow(r, _hessian, _c, _coeffPClass, _numCoeffIndOffset, _dinfo._intercept, _xtx);
+      } else {  // deal with shortened coefficients including only active columns
+        int offset = 0; // offset index into _xy
+        for (int classInd=0; classInd < _c; classInd++) {
+          int catColInd = 0;
+          int colInd = 0;
+          if (_dinfo._catOffsets != null) {
+            for (int i : _activeColsAll[classInd]) {  // deal with cat columns
+              if (i >= _dinfo._catOffsets[catColInd + 1])
+                catColInd++;
+              if (catColInd >= r.nBins)
+                break;
+              if (i == r.binIds[catColInd]) {
+                _xy[i + offset] += _wz[classInd];
+              }
+              colInd++;
+            }
+          }
+          int actColLen = _activeColsAll[classInd].length-1;  // last one is the intercept
+          for (int i=colInd; i < actColLen; i++) {  // deal with numerical columns
+            int numIdx = _activeColsAll[classInd][i]-numStart;
+            int id = r.numIds==null?_activeColsAll[classInd][i]:r.numIds[numIdx];
+            double val = r.numVals[numIdx];
+            _xy[id+offset] += _wz[classInd]*val;
+          }
+
+          if (_dinfo._intercept) { // add intercept term
+              _xy[actColLen+offset] += _wz[classInd];
+          }
+          offset += _activeColsAll[classInd].length;
+        }
+        _gram.addRow(r, _hessian, _c, _coeffPClass, _numCoeffIndOffset, _dinfo._intercept, _xtx, _activeColsAll);
       }
-      _gram.addRow(r,_hessian, _c, _coeffPClass, _numCoeffIndOffset, _dinfo._intercept, _xtx);
     }
     
     public void generateEtasNProbs(double oneOverSumExp, Row r) {
       for (int classInd=0; classInd < _c; classInd++) {
-        _etas[classInd] = r.innerProduct(_beta_multinomial[classInd])+(_sparse?_sparseOffsets[classInd]:0);
+        _etas[classInd] = (_activeColsAll==null?r.innerProduct(_beta_multinomial[classInd])
+                :r.innerProduct(_beta_multinomial[classInd], _activeColsAll[classInd]))+(_sparse?_sparseOffsets[classInd]:0);
         _probs[classInd] = Math.exp(_etas[classInd])*oneOverSumExp;
       }
     }
