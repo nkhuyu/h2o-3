@@ -942,21 +942,14 @@ public class DataInfo extends Keyed<DataInfo> {
           if (catColInd >= nBins)
             break;
           if (i == binIds[catColInd]) {
-            res += vec[i];
+            res += vec[colInd];
           }
           colInd++;
         }
       }
       int actColLen = activeCols.length-1;  // last one is the intercept
-      if (numIds==null) {
-        for (int colidx = colInd; colidx < actColLen; colidx++) {
-          res += numVals[activeCols[colidx]-numStart]*vec[colidx];
-        }
-      } else {
-        for (int colidx=colInd; colidx < actColLen; colidx++) {
-          int trueColidx = activeCols[colidx-numStart];
-          res += numVals[trueColidx]*vec[numIds[trueColidx]];
-        }
+      for (int colidx = colInd; colidx < actColLen; colidx++) {
+        res += numVals[activeCols[colidx] - numStart] * vec[colidx];
       }
       if(_intercept)
         res += vec[actColLen];

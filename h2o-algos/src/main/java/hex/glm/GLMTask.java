@@ -2028,7 +2028,7 @@ public abstract class GLMTask  {
               if (catColInd >= r.nBins)
                 break;
               if (i == r.binIds[catColInd]) {
-                _xy[i + offset] += _wz[classInd];
+                _xy[colInd + offset] += _wz[classInd];
               }
               colInd++;
             }
@@ -2036,9 +2036,8 @@ public abstract class GLMTask  {
           int actColLen = _activeColsAll[classInd].length-1;  // last one is the intercept
           for (int i=colInd; i < actColLen; i++) {  // deal with numerical columns
             int numIdx = _activeColsAll[classInd][i]-numStart;
-            int id = r.numIds==null?_activeColsAll[classInd][i]:r.numIds[numIdx];
             double val = r.numVals[numIdx];
-            _xy[id+offset] += _wz[classInd]*val;
+            _xy[i+offset] += _wz[classInd]*val;
           }
 
           if (_dinfo._intercept) { // add intercept term

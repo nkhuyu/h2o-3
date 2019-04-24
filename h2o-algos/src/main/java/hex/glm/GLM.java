@@ -623,7 +623,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
       }
       return Arrays.copyOf(res,cnt);
     }
-    private double[] ADMM_solve(Gram gram, double [] xy, int nclass) {
+    private double[] ADMM_solve(Gram gram, double [] xy, int nclass, int[][] activeColsAll) {
       if(_parms._remove_collinear_columns || _parms._compute_p_values) {
         if(!_parms._intercept) throw H2O.unimpl();
         ArrayList<Integer> ignoredCols = new ArrayList<>();
@@ -728,7 +728,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
             long t2 = System.currentTimeMillis();
             ComputationState.GramXY gram = _state.computeGram(ls.getX(), s);  // shortened coefficients
             long t3 = System.currentTimeMillis();
-            double[] betaCnd = ADMM_solve(gram.gram, gram.xy, _nclass);       // shortened coefficients
+            double[] betaCnd = ADMM_solve(gram.gram, gram.xy, _nclass, null);       // shortened coefficients
 
             long t4 = System.currentTimeMillis();
             if (!onlyIcpt && !ls.evaluate(ArrayUtils.subtract(betaCnd, ls.getX(), betaCnd))) {
@@ -782,7 +782,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
           long t2 = System.currentTimeMillis();
           ComputationState.GramXY gram = _state.computeGram(ls.getX(), s); // use ls.getX() to get shortened coeffs.
           long t3 = System.currentTimeMillis();
-          double[] betaCnd = s.equals(Solver.IRLSM_SPEEDUP)?ADMM_solve(gram.gram, gram.xy, _nclass)
+          double[] betaCnd = s.equals(Solver.IRLSM_SPEEDUP)?ADMM_solve(gram.gram, gram.xy, _nclass, _state._activeColsAll)
                   :solveBeta(gram.gram, gram.xy, beta, _state.l1pen(), _state.l2pen());
 
           long t4 = System.currentTimeMillis();
@@ -892,7 +892,8 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
       long t0 = System.currentTimeMillis();
       ComputationState.GramXY gramXY = _state.computeGram(_state.beta(),s);
       Log.info(LogMsg("Gram computed in " + (System.currentTimeMillis()-t0) + "ms"));
-      double [] beta = _parms._solver == Solver.COORDINATE_DESCENT?COD_solve(gramXY,_state._alpha,_state.lambda()):ADMM_solve(gramXY.gram,gramXY.xy, _nclass);
+      double [] beta = _parms._solver == Solver.COORDINATE_DESCENT?COD_solve(gramXY,_state._alpha,_state.lambda())
+              :ADMM_solve(gramXY.gram,gramXY.xy, _nclass, null);
       // compute mse
       double [] x = ArrayUtils.mmul(gramXY.gram.getXX(),beta);
       for(int i = 0; i < x.length; ++i)
@@ -921,7 +922,8 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
               System.out.println("DONE after " + (iterCnt-1) + " iterations (1)");
               return;
             }
-            betaCnd = s == Solver.COORDINATE_DESCENT?COD_solve(gram,_state._alpha,_state.lambda()):ADMM_solve(gram.gram,gram.xy, 1);
+            betaCnd = s == Solver.COORDINATE_DESCENT?COD_solve(gram,_state._alpha,_state.lambda())
+                    :ADMM_solve(gram.gram,gram.xy, 1, null);
           }
           firstIter = false;
           long t3 = System.currentTimeMillis();
