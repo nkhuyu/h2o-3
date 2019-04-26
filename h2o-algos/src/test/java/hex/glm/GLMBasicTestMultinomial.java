@@ -514,12 +514,38 @@ public class GLMBasicTestMultinomial extends TestUtil {
     Frame fr;
     
     try {
-      fr = parse_test_file("/Users/wendycwong/temp/glm_mult_slow/multinomial");
+      
+/*      fr = parse_test_file("/Users/wendycwong/temp/glm_mult_slow/multinomial_200Rows.csv");
       String responseName = fr._names[54];
       Vec v = fr.remove(responseName);
       fr.add(responseName, v.toCategoricalVec());
       v.remove();
-      Scope.track(fr);
+      Scope.track(fr);*/
+
+      int numRows = 200;
+      int nclass = 3;
+      int numCol = 6;
+
+/*      fr = TestUtil.generate_enum_only(numCol, numRows, nclass, 0);
+      Scope.track(fr);*/
+      
+    /*  Frame f2 = TestUtil.generate_real_only(numCol, numRows, 0);
+      Scope.track(f2);
+      Frame f3 = TestUtil.generate_enum_only(1, numRows, nclass, 0);
+      Scope.track(f3);
+      fr = f2.add(f3);
+      Scope.track(fr); */
+    
+    Frame f1 = TestUtil.generate_enum_only(1, numRows, 4, 0);
+    Scope.track(f1);
+    Frame f2 = TestUtil.generate_real_only(3, numRows, 0);
+    Scope.track(f2);
+    Frame f3 = TestUtil.generate_enum_only(1, numRows, nclass, 0);
+    Scope.track(f3);
+    fr = f1.add(f2).add(f3);
+    Scope.track(fr);
+      
+      String responseName = fr._names[fr._names.length-1];
       GLMParameters params = new GLMParameters(Family.multinomial);
       params._response_column = responseName;
       params._ignored_columns = new String[]{};
@@ -580,7 +606,7 @@ public class GLMBasicTestMultinomial extends TestUtil {
       TestUtil.checkDoubleArrays(admml2pen._output._global_beta_multinomial, 
               noadmml2pen._output._global_beta_multinomial, threshold);
       TestUtil.checkDoubleArrays(admmbothreg._output._global_beta_multinomial,
-              noadmmbothreg._output._global_beta_multinomial, 5e-1);
+              noadmmbothreg._output._global_beta_multinomial, 0.001);
     } finally {
       Scope.exit();
     }
@@ -598,6 +624,7 @@ public class GLMBasicTestMultinomial extends TestUtil {
       params._alpha = new double[]{alpha};
       params._solver = solver;
       params._max_iterations = 1;
+      params._seed = 12345;
       if (!hasIntercept)
         params._intercept = false;
       

@@ -168,8 +168,7 @@ public class TestUtil extends Iced {
     cf.categorical_fraction = 1;
     cf.has_response=false;
     cf.missing_fraction = missingfrac;
-    //cf.seed = System.currentTimeMillis();
-    cf.seed = 12345;
+    cf.seed = System.currentTimeMillis();
     System.out.println("Createframe parameters: rows: "+numRows+" cols:"+numCols+" seed: "+cf.seed);
     return cf.execImpl().get();
   }
@@ -233,8 +232,7 @@ public class TestUtil extends Iced {
     cf.string_fraction = 0;
     cf.has_response=false;
     cf.missing_fraction = missingfrac;
-   // cf.seed = System.currentTimeMillis();
-    cf.seed = 12345;
+    cf.seed = System.currentTimeMillis();
     System.out.println("Createframe parameters: rows: "+numRows+" cols:"+numCols+" seed: "+cf.seed);
     return cf.execImpl().get();
   }
