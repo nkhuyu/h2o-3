@@ -153,7 +153,7 @@ public final class Gram extends Iced<Gram> {
       _xx[i][_xx[i].length - 1] += d;
   }
 
-  public void addDiag(double d, boolean add2Intercept, int nclass) { // todo: fix this for multinomial speedup
+  public void addDiag(double d, boolean add2Intercept, int nclass) {
     _diagAdded += d;
     int coeffPClass = _xx.length/nclass;
     int ii = (!_hasIntercept || add2Intercept)?0:1;
@@ -162,6 +162,20 @@ public final class Gram extends Iced<Gram> {
         int diagInd = i + classInd * coeffPClass;
         _xx[diagInd][diagInd] += d;
       }
+    }
+  }
+
+  public void addDiag(double d, boolean add2Intercept, int nclass, int[][] activeColsAll) {
+    _diagAdded += d;
+    int ii = (!_hasIntercept || add2Intercept)?0:1;
+    int offset = 0;
+    for (int classInd=0; classInd<nclass; classInd++) {
+      int actColLen = activeColsAll[classInd].length-ii;
+      for (int i=0; i < actColLen; i++) {
+        int diagInd = i+offset;
+        _xx[diagInd][diagInd] += d;
+      }
+      offset+= activeColsAll[classInd].length;
     }
   }
 
@@ -834,7 +848,7 @@ public final class Gram extends Iced<Gram> {
           for (int cpredInd = 0; cpredInd < coeffPClass; cpredInd++) {
             int colInd = classInd2 * coeffPClass + cpredInd;
             if (colInd >=  maxLen)
-              continue;
+              break;
             _xx[rowInd][colInd] += w[classInd][classInd2] * xtx[rpredInd][cpredInd];
           }
         }
@@ -848,29 +862,37 @@ public final class Gram extends Iced<Gram> {
       generateXTXSparse(xtx, row, coeffPClass, numCoeffOffset);
     else
       generateXtX(xtx, coeffPClass, row, numCoeffOffset);
+
+    int classInd = 0;
+    int[] activeColsRow = activeCols[classInd];
+    int rowLen = activeColsRow.length;
     int rowOffset = 0;
-    int colOffset = 0;
-    for (int classInd = 0; classInd < nclass; classInd++) {         // treat this as the row
-      for (int classInd2 = 0; classInd2 <= classInd; classInd2++) { // treat this as the column
-        int[] activeColsRow = activeCols[classInd];
-        int[] activeColsCol = activeCols[classInd2];
-        for (int rpredInd:activeColsRow) {
-      //  for (int rpredInd = 0; rpredInd < coeffPClass; rpredInd++) {
-          int rowInd = rowOffset + rpredInd;
-          int maxLen = _xx[rowInd].length;
-          for (int cpredInd:activeColsCol) {
-         // for (int cpredInd = 0; cpredInd < coeffPClass; cpredInd++) {
-            int colInd = colOffset + cpredInd;
-            if (colInd >=  maxLen)
-              continue;
-            _xx[rowInd][colInd] += w[classInd][classInd2] * xtx[rpredInd][cpredInd];
-          }
-        }
-        rowOffset += activeCols[classInd].length;
-        colOffset += activeCols[classInd2].length;
+    for (int rpredInd=0; rpredInd < _xx.length; rpredInd++) {
+      if (rpredInd >= rowLen) {
+        rowOffset = rowLen;
+        classInd++;
+        activeColsRow = activeCols[classInd];
+        rowLen += activeColsRow.length;
       }
+      int maxLen = _xx[rpredInd].length;
+      int classInd2 = 0;
+      int colOffset = 0;
+      int[] activeColsCol = activeCols[classInd2];
+      int colLen = activeColsCol.length;
+      for (int cpredInd=0; cpredInd < maxLen; cpredInd++) {
+        if (cpredInd >= colLen) {
+          colOffset = colLen;
+          classInd2++;
+          activeColsCol = activeCols[classInd2];
+          colLen += activeColsCol.length;
+        }
+        _xx[rpredInd][cpredInd] += w[classInd][classInd2]*xtx[activeColsRow[rpredInd-rowOffset]][activeColsCol[cpredInd-colOffset]];
+      }
+
     }
   }
+  
+
   
   public void generateXtX(double[][] xtx, int coeffPClass, DataInfo.Row row, int numCoeffOffset) {
     int numOff = _denseN; // start of numerical columns

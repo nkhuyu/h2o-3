@@ -156,10 +156,10 @@ public class ArrayUtils {
   }
   public static double l1norm(double [] x, int[] icptInd){
     double sum = 0;
-    int compareIndex = 0;
+    int classIndex = 0;
     for (int index=0; index < x.length; index++)  {
-      if (index == icptInd[compareIndex]) {
-        compareIndex++;
+      if (index == icptInd[classIndex]) {
+        classIndex++;
       } else {
         sum+= x[index] >= 0? x[index]:-x[index];
       }
@@ -277,6 +277,19 @@ public class ArrayUtils {
     int finalInd = ncoeffPClass-ii;
     for (int classInd = 0; classInd < nclass; classInd++) {
       for (int i = 0; i < finalInd; i++) a[i+classInd*ncoeffPClass] += b;
+    }
+    return a;
+  }
+  public static double[] add(double[] a, double b, int nclass, int[][] activeColAll, boolean addIntercept) {
+    int ii = addIntercept?1:0;
+    int offset = 0;
+    for (int classInd=0; classInd<nclass; classInd++) {
+      int[] activeCols = activeColAll[classInd];
+      int finalInd = activeCols.length-ii;
+      for (int i=0; i<finalInd; i++) {
+        a[i+offset] += b;
+      }
+      offset += activeCols.length;
     }
     return a;
   }

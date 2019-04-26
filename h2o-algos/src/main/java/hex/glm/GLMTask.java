@@ -2021,7 +2021,7 @@ public abstract class GLMTask  {
         for (int classInd=0; classInd < _c; classInd++) {
           int catColInd = 0;
           int colInd = 0;
-          if (_dinfo._catOffsets != null) {
+          if (_dinfo._cats > 0) {
             for (int i : _activeColsAll[classInd]) {  // deal with cat columns
               if (i >= _dinfo._catOffsets[catColInd + 1])
                 catColInd++;

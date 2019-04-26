@@ -227,6 +227,15 @@ public final class ComputationState {
     return res;
   }
 
+  private static double [] extractSubRange(int N, int [] ids, double [] src, int offset) {
+    if(ids == null) return Arrays.copyOfRange(src,offset,offset+ids.length);
+    double [] res = MemoryManager.malloc8d(ids.length);
+    int j = 0;
+    for(int i:ids)
+      res[j++] = src[offset+i];
+    return res;
+  }
+
   /**
    * 
    * @param N: number of coefficients per class
@@ -235,14 +244,24 @@ public final class ComputationState {
    * @param src: values of active columns only
    * @param dst: coefficients of all classes stacked up
    */
-  private static void fillSubRange(int N, int c, int [] ids, double [] src, double [] dst) {  
-    if(ids == null) { // if no active indices are stored, copy everything in src to dst
+  private static void fillSubRange(int N, int c, int [] ids, double [] src, double [] dst) {
+    if(ids == null) {
       System.arraycopy(src,0,dst,c*N,N);
     } else {
-        int j = 0;
-        int off = c * N;
-        for (int i : ids)
-          dst[off + i] = src[j++];
+      int j = 0;
+      int off = c * N;
+      for (int i : ids)
+        dst[off + i] = src[j++];
+    }
+  }
+
+  private static void fillSubRange(int N, int [] ids, double [] src, double [] dst, int offset) {
+    if(ids == null) { // if no active indices are stored, copy everything in src to dst
+      System.arraycopy(src,0,dst,offset,N);
+    } else {
+      int j= offset;
+      for (int i : ids)
+        dst[offset + i] = src[j++];
     }
   }
 
@@ -326,10 +345,14 @@ public final class ComputationState {
       @Override
       public GradientInfo getGradient(double[] beta) { // beta stores coeff of one class for other
         if (_multinomialSpeedup) {  // beta only contains active coefficients of all classes, need to expand it back to fullbeta
+          Arrays.fill(fullbeta, 0.0); // zero out full beta;
+          int offset = 0;
           for (int classInd = 0; classInd < _nclasses; classInd++) {
-            fillSubRange(_activeData.fullN() + 1, classInd, _activeDataMultinomial[classInd].activeCols(), beta, fullbeta);
+            fillSubRange(_activeData.fullN()+1, _activeDataMultinomial[classInd].activeCols(), beta, fullbeta, offset);
+            offset += _activeDataMultinomial[classInd].activeCols().length;
           }
-         // System.arraycopy(beta, 0, fullbeta, 0, fullbeta.length);  // just copy over the whole beta
+
+          // System.arraycopy(beta, 0, fullbeta, 0, fullbeta.length);  // just copy over the whole beta
         } else  // this is where the conversion from shortened to original length happens in order to do get Gradient
           fillSubRange(_activeData.fullN() + 1, c, _activeDataMultinomial[c].activeCols(), beta, fullbeta);
 
@@ -339,7 +362,8 @@ public final class ComputationState {
           double[] currGradient = new double[beta.length];
           int startInd = 0;
           for (int classInd = 0; classInd < _nclasses; classInd++) {
-            double[] tempG = extractSubRange(_activeData.fullN() + 1, classInd, _activeDataMultinomial[classInd].activeCols(), fullGinfo._gradient);
+            double[] tempG = extractSubRange(_activeData.fullN() + 1, 
+                    _activeDataMultinomial[classInd].activeCols(), fullGinfo._gradient, startInd);
             System.arraycopy(tempG, 0, currGradient, startInd, tempG.length);
             startInd += tempG.length;
           }
