@@ -1799,9 +1799,12 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
         }
 
       if (l2pen > 0)
-          if (activeColAll==null)
-            gram.addDiag(l2pen, !intercept, nclass);
-          else
+          if (activeColAll==null) {
+            if (gram._multinomialSpeedUp)
+              gram.addDiag(l2pen, !intercept, nclass);
+            else
+              gram.addDiag(l2pen);
+          } else
             gram.addDiag(l2pen, !intercept, nclass, activeColAll);
 
       if (proxPen != null && beta_given != null) {  // does not apply to multiclass 
