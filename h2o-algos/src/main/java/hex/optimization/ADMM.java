@@ -29,6 +29,7 @@ public class ADMM {
     final double _eps;
     final int max_iter;
     int _nclass = 1;  // default is one
+    int[][] _activeColsAll;
 
     MathUtils.Norm _gradientNorm = Norm.L_Infinite;
 
@@ -41,8 +42,8 @@ public class ADMM {
       this(eps,max_iter,DEFAULT_RELTOL,DEFAULT_ABSTOL,u);
     }
 
-    public L1Solver(double eps, int max_iter, double [] u, int nclass) {
-      this(eps,max_iter,DEFAULT_RELTOL,DEFAULT_ABSTOL,u,nclass);
+    public L1Solver(double eps, int max_iter, double [] u, int nclass, int[][] activeCols) {
+      this(eps,max_iter,DEFAULT_RELTOL,DEFAULT_ABSTOL,u,nclass, activeCols);
     }
 
     public L1Solver(double eps, int max_iter, double reltol, double abstol, double [] u) {
@@ -52,9 +53,10 @@ public class ADMM {
       ABSTOL = abstol;
     }
     
-    public L1Solver(double eps, int max_iter, double reltol, double abstol, double [] u, int nclass) {
+    public L1Solver(double eps, int max_iter, double reltol, double abstol, double [] u, int nclass, int[][] activeCols) {
       this(eps, max_iter, reltol, abstol, u);
       _nclass=nclass;
+      _activeColsAll = activeCols;
     }
 
     public L_BFGS.ProgressMonitor _pm;
@@ -120,22 +122,32 @@ public class ADMM {
       Arrays.fill(z, 0.0);  //
       double [] beta_given = MemoryManager.malloc8d(N);
       double [] u;
-      int coeffPClass = z.length/_nclass;
+      int coeffPClass = _activeColsAll==null?z.length/_nclass:_activeColsAll[0][_activeColsAll[0].length-1]+1;
+      boolean useAllPreds = _activeColsAll==null;
       if(_u != null) {
         u = _u;
+        int offset = 0;
         for (int classInd=0; classInd < _nclass; classInd++) {
-          for (int i = 0; i < coeffPClass - hasIcpt; ++i) { // intercept terms are left alone
-            int trueInd = i+classInd*coeffPClass;
+          int lastIndex = useAllPreds?coeffPClass-hasIcpt:_activeColsAll[classInd].length-hasIcpt;
+          for (int i = 0; i < lastIndex; ++i) { // intercept terms are left alone
+            int trueInd = i + offset;
             beta_given[trueInd] = z[trueInd] - _u[trueInd];
           }
+          offset += useAllPreds?coeffPClass:_activeColsAll[classInd].length;
+
         }
       } else u = _u = MemoryManager.malloc8d(z.length);
       double [] kappa = MemoryManager.malloc8d(rho.length);
 
-      if(l1pen > 0) {
+      if (l1pen > 0) {
+        int offset = 0;
         for (int classInd = 0; classInd < _nclass; classInd++) {  // skip intercepts here, prepare for soft thresholding
-          for (int i = 0; i < coeffPClass - hasIcpt; ++i)
-            kappa[i+classInd*coeffPClass] = rho[i+classInd*coeffPClass] != 0 ? l1pen / rho[i+classInd*coeffPClass] : 0;
+          int lastIndex = useAllPreds?coeffPClass-hasIcpt:_activeColsAll[classInd].length - hasIcpt;
+          for (int i=0; i<lastIndex; i++) {
+            int cind = i+offset;
+            kappa[cind] = rho[cind]!=0?l1pen/rho[cind]:0;
+          }
+          offset+=useAllPreds?coeffPClass:_activeColsAll[classInd].length;
         }
       }
       int i;
@@ -145,9 +157,11 @@ public class ADMM {
         if(_pm != null && (i + 1) % 5 == 0)_pm.progress(z,solver.gradient(z));  // z = xy at the beginning
         // compute u and z updateADMM
         double rnorm = 0, snorm = 0, unorm = 0, xnorm = 0;
+        int offset = 0;
         for (int classInd = 0; classInd < _nclass; classInd++) {
-          for (int j = 0; j < coeffPClass - hasIcpt; ++j) { // intercepts are excluded here
-            int trueInd = j+classInd*coeffPClass;
+          int lastIndex = useAllPreds?coeffPClass - hasIcpt:_activeColsAll[classInd].length-hasIcpt;
+          for (int j = 0; j < lastIndex; ++j) { // intercepts are excluded here
+            int trueInd = j+offset;
             double xj = x[trueInd]; // contains the solution of inv(Gram)*(_xy+rho(z-u))
             double zjold = z[trueInd];
             double x_hat = xj * orlx + (1 - orlx) * zjold;  // average new x from solve with old z value
@@ -166,6 +180,7 @@ public class ADMM {
             unorm += rho[trueInd] * rho[trueInd] * u[trueInd] * u[trueInd];
             z[trueInd] = zj;
           }
+          offset += useAllPreds?coeffPClass:_activeColsAll[classInd].length;
         }
         
 /*         if (hasIntercept) {
@@ -205,16 +220,19 @@ public class ADMM {
         }
       }
       if (hasIntercept) { // fill in the intercept values for z which now holds beta
-           for (int classInd=1; classInd <= _nclass; classInd++) {
-             int idx = coeffPClass*classInd - 1;
-             double icpt = x[idx];
-             if (lb != null && icpt < lb[idx])
-               icpt = lb[idx];
-             if (ub != null && icpt > ub[idx])
-               icpt = ub[idx];
-             z[idx] = icpt;
-           }
+        int offset = -1;
+        for (int classInd = 1; classInd <= _nclass; classInd++) {
+          int oclass = classInd-1;
+          int idx = useAllPreds?(coeffPClass * classInd - 1):(_activeColsAll[oclass].length+offset);
+          double icpt = x[idx];
+          if (lb != null && icpt < lb[idx])
+            icpt = lb[idx];
+          if (ub != null && icpt > ub[idx])
+            icpt = ub[idx];
+          z[idx] = icpt;
+          offset += useAllPreds?coeffPClass:_activeColsAll[oclass].length;
         }
+      }
       computeErr(z, solver.gradient(z)._gradient, l1pen, lb, ub);
       if(iter == max_iter)
         Log.warn("ADMM solver reached maximum number of iterations (" + max_iter + ")");

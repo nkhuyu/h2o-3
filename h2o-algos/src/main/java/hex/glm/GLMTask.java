@@ -1906,8 +1906,10 @@ public abstract class GLMTask  {
         _probs = new double[_c];
         _betaOneClass = new double[_beta.length/_c];
         _beta_multinomial = new double[_c][];
+        
         for (int classInd = 0; classInd < _c; classInd++) {
-          _beta_multinomial[classInd] = new double[_activeColsAll[classInd].length];
+          _beta_multinomial[classInd] = _activeColsAll== null? new double[_coeffPClass]
+                  :new double[_activeColsAll[classInd].length];
         }
         if (_activeColsAll==null)
           ArrayUtils.convertTo2DMatrix(_beta, _beta_multinomial);
@@ -2025,7 +2027,7 @@ public abstract class GLMTask  {
             for (int i : _activeColsAll[classInd]) {  // deal with cat columns
               if (i >= _dinfo._catOffsets[catColInd + 1])
                 catColInd++;
-              if (catColInd >= r.nBins)
+              if (catColInd >= _dinfo._cats)
                 break;
               if (i == r.binIds[catColInd]) {
                 _xy[colInd + offset] += _wz[classInd];

@@ -116,52 +116,23 @@ public class OptimizationUtils {
 
     @Override
     public boolean evaluate(double[] direction) {
-      double [] newBeta = direction.clone();
+      double[] newBeta = direction.clone();
       double step = 1;
       double minStep = 1;
-      
-      if (_multinomialSpeedup) {  // I am using a different approach here that will take use there in one step
-        GradientInfo ginfo = _gslvr.getObjective(ArrayUtils.wadd(_beta, direction, newBeta, 1));
+      for (double d : direction) {
+        d = Math.abs(1e-4 / d);
+        if (d < minStep) minStep = d;
+      }
+      for (int i = 0; i < _maxfev && step >= minStep; ++i, step *= _stepDec) {
+        GradientInfo ginfo = _gslvr.getObjective(ArrayUtils.wadd(_beta, direction, newBeta, step));
         double objVal = ginfo._objVal + _l1pen * ArrayUtils.l1norm(newBeta, true);
-        if (ginfo._objVal >= _objVal) {  // nothing can be done to reduce it further
-          if (_updateObj) {
-            updateLSField(ginfo, objVal, newBeta, step);
-            return false;
-          }
-        } else {  // possibility of improvement
-            if (objVal < _objVal) { // done already
-              updateLSField(ginfo, objVal, newBeta, step);
-              return true;
-            } else {  // our work began
-              double oldObj = Double.MAX_VALUE;
-              step = Math.exp(Math.log((objVal - _objVal)) / _maxfev);
-              for (int i = 0; i < _maxfev; ++i, step *= step) {
-                ginfo = _gslvr.getObjective(ArrayUtils.wadd(_beta, direction, newBeta, step));
-                objVal = ginfo._objVal + _l1pen * ArrayUtils.l1norm(newBeta, true);
-                if (objVal < _objVal) {
-                  updateLSField(ginfo, objVal, newBeta, step);
-                  return true;
-                }
-              if (Math.abs(oldObj - objVal) < _tolerance) {
-                return false;
-              } else {
-                oldObj = objVal;
-              }
-            }
-          }
+        if (_updateObj) {
+          updateLSField(ginfo, objVal, newBeta, step);
+          return false;
         }
-      } else {
-        for (double d : direction) {
-          d = Math.abs(1e-4 / d);
-          if (d < minStep) minStep = d;
-        }
-        for (int i = 0; i < _maxfev && step >= minStep; ++i, step *= _stepDec) {
-          GradientInfo ginfo = _gslvr.getObjective(ArrayUtils.wadd(_beta, direction, newBeta, step));
-          double objVal = ginfo._objVal + _l1pen * ArrayUtils.l1norm(newBeta, true);
-          if (objVal < _objVal) {
-            updateLSField(ginfo, objVal, newBeta, step);
-            return true;
-          }
+        if (objVal < _objVal) {
+          updateLSField(ginfo, objVal, newBeta, step);
+          return true;
         }
       }
       return false;
@@ -197,6 +168,7 @@ public class OptimizationUtils {
     private final GradientSolver _gslvr;
     private double [] _beta;
     private double[] _betaAll;
+    boolean _updateObj = false; // update beta regardless of objective improvement
 
 
     public MoreThuente(GradientSolver gslvr, double [] betaStart){
@@ -205,11 +177,16 @@ public class OptimizationUtils {
     public MoreThuente(GradientSolver gslvr, double [] betaStart, GradientInfo ginfo){
       this(gslvr,betaStart,ginfo,.1,.1,1e-8);
     }
+    public MoreThuente(GradientSolver gslvr, double [] betaStart, GradientInfo ginfo, boolean updateObj){
+      this(gslvr,betaStart,ginfo,.1,.1,1e-8);
+      _updateObj = updateObj;
+    }
     public MoreThuente(GradientSolver gslvr, double [] betaStart, GradientInfo ginfo, double[] betaAll){
       this(gslvr,betaStart,ginfo,.1,.1,1e-8);
       _betaAll = new double[betaAll.length];
       System.arraycopy(betaAll, 0, _betaAll, 0, _betaAll.length);
     }
+    
     public MoreThuente(GradientSolver gslvr, double [] betaStart, GradientInfo ginfo, double ftol, double gtol, double xtol){
       _gslvr = gslvr;
       _beta = betaStart;
@@ -425,6 +402,11 @@ public class OptimizationUtils {
 
         for (int i = 0; i < beta.length; ++i)
           beta[i] = _beta[i] + step * direction[i];
+        if (_updateObj) {
+          _beta = beta;
+          _ginfox = _gslvr.getGradient(beta);
+          return false; // force update of coefficients for the first several iterations
+        }
         GradientInfo newGinfo = _gslvr.getGradient(beta);
         if(newGinfo._objVal < maxObj && (_betGradient == null || (newGinfo._objVal - maxFval) < _bestPsiVal)){
           _bestPsiVal = (newGinfo._objVal - maxFval);

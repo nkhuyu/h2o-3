@@ -863,7 +863,7 @@ public final class Gram extends Iced<Gram> {
     else
       generateXtX(xtx, coeffPClass, row, numCoeffOffset);
 
-    int classInd = 0;
+/*    int classInd = 0;
     int[] activeColsRow = activeCols[classInd];
     int rowLen = activeColsRow.length;
     int rowOffset = 0;
@@ -886,10 +886,43 @@ public final class Gram extends Iced<Gram> {
           activeColsCol = activeCols[classInd2];
           colLen += activeColsCol.length;
         }
+        if (((cpredInd-colOffset) >= 133) &&  (activeColsCol.length <= 133))
+          System.out.println("Out");
+        if (((rpredInd-rowOffset) >= 133) &&  (activeColsRow.length <= 133))
+          System.out.println("Out");
         _xx[rpredInd][cpredInd] += w[classInd][classInd2]*xtx[activeColsRow[rpredInd-rowOffset]][activeColsCol[cpredInd-colOffset]];
       }
 
+    }*/
+    
+    int roffset = 0;
+    for (int classIndr=0; classIndr < nclass; classIndr++) {
+      int coffset = 0;
+      int[] activeColsRow = activeCols[classIndr];
+      int rowLen = activeColsRow.length;
+      for (int classIndc=0; classIndc <= classIndr; classIndc++) {
+        int[] activeColsCol = activeCols[classIndc];
+        int colLen = activeColsCol.length;
+        for (int rpredInd=0; rpredInd <rowLen; rpredInd++) {
+          int rInd = rpredInd+roffset;
+          int maxLen = _xx[rInd].length;
+          for (int cpredInd=0; cpredInd < colLen; cpredInd++) {
+            int cInd = cpredInd+coffset;
+            if (cInd >= maxLen)
+              break;
+            _xx[rInd][cInd] += w[classIndr][classIndc]*xtx[activeColsRow[rpredInd]][activeColsCol[cpredInd]];
+          }
+        }
+        coffset += colLen;
+      }
+      roffset += rowLen;
     }
+    
+    
+    
+    
+    
+    
   }
   
 

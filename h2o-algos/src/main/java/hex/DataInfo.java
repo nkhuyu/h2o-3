@@ -935,11 +935,11 @@ public class DataInfo extends Keyed<DataInfo> {
       int numStart = numStart();  // numerical column coefficient index start with expanded cat columns
       int catColInd = 0;
       int colInd = 0;
-      if (nBins > 0) {
+      if (_cats > 0) {
         for (int i : activeCols) { // take care of cat columns here
           if (i >= _catOffsets[catColInd + 1])
             catColInd++;
-          if (catColInd >= nBins)
+          if (catColInd >= _cats)
             break;
           if (i == binIds[catColInd]) {
             res += vec[colInd];

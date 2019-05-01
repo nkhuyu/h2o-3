@@ -51,6 +51,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
   static NumberFormat devFormatter = new DecimalFormat(".##");
 
   public static final int SCORING_INTERVAL_MSEC = 15000; // scoreAndUpdateModel every minute unless score every iteration is set
+  public static final int MULTINOMIAL_LS_ITER = 3;
   public String _generatedWeights = null;
   public GLM(boolean startup_once){super(new GLMParameters(),startup_once);}
   public GLM(GLMModel.GLMParameters parms) {
@@ -93,7 +94,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
   @Override
   public void computeCrossValidation() {
     // init computes global list of lambdas
-    init(true);
+    init(true); 
     _cv = true;
     if (error_count() > 0)
       throw H2OModelBuilderIllegalArgumentException.makeFromBuilder(GLM.this);
@@ -663,7 +664,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
          // xy = MemoryManager.malloc8d(xy.length); // why are we setting this to zero? It is zk and uk who may be zero at the beginning
           if (_state._u == null && (_parms._family != Family.multinomial))
             _state._u = MemoryManager.malloc8d(_state.activeData().fullN() + 1);
-          (_lslvr = new ADMM.L1Solver(1e-4, 10000, _state._u, nclass)).solve(slvr, xy, _state.l1pen(), 
+          (_lslvr = new ADMM.L1Solver(1e-4, 10000, _state._u, nclass, _state._activeColsAll)).solve(slvr, xy, _state.l1pen(), 
                   _parms._intercept, _state.activeBC()._betaLB, _state.activeBC()._betaUB);
         }
       }
@@ -752,7 +753,8 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
 
       double[] beta = _state.betaMultinomial(); // full length multinomial coefficients all stacked up
       int coeffPClass = beta.length/_nclass;
-      boolean firstIter = true;
+      boolean firstIter;
+      int iterCount = 0;
       _state.setActiveClass(_nclass); // set ActiveClass to be number of class for IRLSM_SPEEDUP or IRLSM_SPEEDUP_NO_ADMM
       int[] icptInd = new int[_nclass];
       if (s.equals(Solver.IRLSM_SPEEDUP2)) {
@@ -763,19 +765,20 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
           offset += _state.activeDataMultinomial(classInd).activeCols().length;
         }
       }
-
+      _state.set_MULTINOMIAL_LS_ITER(MULTINOMIAL_LS_ITER);
+      double[] betaCnd;
+      LineSearchSolver ls = null;
       do {
-        beta = beta.clone();  // full length coeffs
         // check and walk through all classes
+       // beta = _state.beta();  // full length coeffs
         boolean onlyIcpt = true;
+        firstIter = iterCount < MULTINOMIAL_LS_ITER;
         for (int classInd = 0; classInd < _nclass; classInd++) {
           onlyIcpt = onlyIcpt && (_state.activeDataMultinomial(classInd).fullN() == 0);
         }
-        
         // generate an array of ls, should it be only one with giant stacks of class coeffs
-        LineSearchSolver ls = (_state.l1pen() == 0)
-                ? new MoreThuente(_state.gslvrMultinomial(0), _state.betaMultinomial(beta), 
-                _state.ginfoMultinomial())
+        ls = (_state.l1pen() == 0) ? new MoreThuente(_state.gslvrMultinomial(0), _state.betaMultinomial(beta), 
+                _state.ginfoMultinomial(), firstIter)
                 : new SimpleBacktrackingLS(_state.gslvrMultinomial(0), _state.betaMultinomial(beta),
                 _state.l1pen(), true, _nclass, coeffPClass, firstIter, icptInd);
         
@@ -784,12 +787,23 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
           new GLMMultinomialSpeedUpUpdate(_state.activeDataMultinomial(), 
                   _job._key, beta, _nclass).doAll(_state.activeDataMultinomial()._adaptedFrame);  // use full beta value
           long t2 = System.currentTimeMillis();
-          ComputationState.GramXY gram = _state.computeGram(ls.getX(), s); // use ls.getX() to get shortened coeffs.
-          long t3 = System.currentTimeMillis();
-          double[] betaCnd = (s.equals(Solver.IRLSM_SPEEDUP) || s.equals(Solver.IRLSM_SPEEDUP2))
-                  ?ADMM_solve(gram.gram, gram.xy, _nclass)
-                  :solveBeta(gram.gram, gram.xy, beta, _state.l1pen(), _state.l2pen());
+          long t3;
 
+        try {
+          ComputationState.GramXY gram = _state.computeGram(ls.getX(), s); // use ls.getX() to get shortened coeffs.
+          t3 = System.currentTimeMillis();
+          betaCnd = (s.equals(Solver.IRLSM_SPEEDUP) || s.equals(Solver.IRLSM_SPEEDUP2))
+                  ? ADMM_solve(gram.gram, gram.xy, _nclass)
+                  : solveBeta(gram.gram, gram.xy, beta, _state.l1pen(), _state.l2pen());
+        } catch (NonSPDMatrixException ex) {
+          if (iterCount > 0) {  // okay to have non-PSD here.  Just don't take the solution
+            betaCnd = ls.getX();
+            warn("Cholesky decomposition: ", "Model building was cut short due to gram matrix not being PSD.");
+            continue;
+          } else
+            throw ex;
+        }
+          
           long t4 = System.currentTimeMillis();
           if (!onlyIcpt && !ls.evaluate(ArrayUtils.subtract(betaCnd, ls.getX(), betaCnd))) {
             if (!firstIter) {
@@ -798,11 +812,10 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
             }
           } 
           long t5 = System.currentTimeMillis();
-          _state.setBetaMultinomial(beta, ls.getX());
           // update multinomial
           Log.info(LogMsg("computed in " + (t2 - t1) + "+" + (t3 - t2) + "+" + (t4 - t3) + "+" + (t5 - t4) + "=" + (t5 - t1) + "ms, step = " + ls.step() + ((_lslvr != null) ? ", l1solver " + _lslvr : "")));
-          firstIter = false;
-      } while (progress(beta, _state.gslvr().getGradient(beta)));
+          iterCount++;
+      } while (progress(ls.getX(), ls.ginfo()));
     }
 
     private double[] solveBeta(Gram gram, double[] xy, double[] beta, double l1pen, double l2pen) {  // final result stores in newBeta
@@ -930,7 +943,6 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
             betaCnd = s == Solver.COORDINATE_DESCENT?COD_solve(gram,_state._alpha,_state.lambda())
                     :ADMM_solve(gram.gram,gram.xy, 1);
           }
-          firstIter = false;
           long t3 = System.currentTimeMillis();
           if(_state._lsNeeded) {
             if(ls == null)

@@ -46,6 +46,7 @@ public final class ComputationState {
   public boolean _multinomialSpeedup = false;
   public int _totalActPred = 0; // store total number of active predictors for all classes
   public int[][] _activeColsAll; // store all active columns of all classes for multinomial classification
+  public int _MULTINOMIAL_LS_ITER = 1; // allowed multinomial iteration before line search kicks in.
 
   /**
    *
@@ -63,6 +64,9 @@ public final class ComputationState {
     _alpha = _parms._alpha[0];
   }
 
+  public void set_MULTINOMIAL_LS_ITER(int iter) {
+    _MULTINOMIAL_LS_ITER=iter;
+  }
   public GLMGradientSolver gslvr(){return _gslvr;}
   public double lambda(){return _lambda;}
   public void setLambdaMax(double lmax) {
@@ -639,6 +643,11 @@ public final class ComputationState {
     if(_betaDiff < _parms._beta_epsilon) {
       convergenceMsg = "betaDiff < eps; betaDiff = " + _betaDiff + ", eps = " + _parms._beta_epsilon;
       converged = true;
+    }  else if (_multinomialSpeedup) {
+      if ((_relImprovement < _parms._objective_epsilon) && ((_iter > (_MULTINOMIAL_LS_ITER+1)) || (_relImprovement > 0)))  {
+        convergenceMsg = "relImprovement < eps; relImprovement = " + _relImprovement + ", eps = " + _parms._objective_epsilon;
+        converged = true;
+      }
     } else if((_relImprovement > 0 || _iter > 1) && _relImprovement < _parms._objective_epsilon) {
       convergenceMsg = "relImprovement < eps; relImprovement = " + _relImprovement + ", eps = " + _parms._objective_epsilon;
       converged = true;
@@ -647,10 +656,27 @@ public final class ComputationState {
   }
 
   protected double updateState(double [] beta,GLMGradientInfo ginfo){
-    _betaDiff = ArrayUtils.linfnorm(_beta == null?beta:ArrayUtils.subtract(_beta,beta),false);
+    _betaDiff = _activeColsAll==null
+            ?ArrayUtils.linfnorm(_beta == null?beta:ArrayUtils.subtract(_beta,beta),false):
+            ArrayUtils.linfnorm(_beta == null?beta:ArrayUtils.subtract(_beta,beta,_activeColsAll),false);
     double objOld = objective();
     if(_beta == null)_beta = beta.clone();
-    else System.arraycopy(beta,0,_beta,0,beta.length);
+    else if (_beta.length==beta.length)
+      System.arraycopy(beta,0,_beta,0,beta.length);
+    else if (_activeColsAll!=null) {
+      Arrays.fill(_beta, 0.0);
+      int coffset = 0;
+      int offset = 0;
+      for (int classInd = 0; classInd < _nclasses; classInd++) {
+        int clen = _activeColsAll[classInd].length;
+        int[] activeCol = _activeColsAll[classInd];
+        for (int i=0; i < clen; i++) {
+          _beta[coffset+activeCol[i]] = beta[i+offset];
+        }
+        offset += clen;
+        coffset += activeCol[clen-1]+1;
+      }
+    }
     _ginfo = ginfo;
     _likelihood = ginfo._likelihood;
     return (_relImprovement = (objOld - objective())/objOld);
@@ -752,12 +778,12 @@ public final class ComputationState {
     GLMTask.GLMIterationTask gt = _parms._solver.equals(GLMParameters.Solver.IRLSM_SPEEDUP2)?
             new GLMTask.GLMIterationTask(_job._key, activeData, _glmw, beta,_activeClass, 
             s.equals(GLMParameters.Solver.IRLSM_SPEEDUP)||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP_NO_ADMM)
-                    ||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP2), _activeColsAll, 
-            _ginfo._gradient.length/_nclasses).doAll(activeData._adaptedFrame):
+                    ||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP2), _activeColsAll,
+                    activeData.fullN()+1).doAll(activeData._adaptedFrame):
             new GLMTask.GLMIterationTask(_job._key, activeData, _glmw, beta,_activeClass,
                     s.equals(GLMParameters.Solver.IRLSM_SPEEDUP)||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP_NO_ADMM)
                             ||s.equals(GLMParameters.Solver.IRLSM_SPEEDUP2), null,
-                    _ginfo._gradient.length/_nclasses).doAll(activeData._adaptedFrame);
+                    activeData.fullN()+1).doAll(activeData._adaptedFrame);
     gt._gram.mul(obj_reg);
     ArrayUtils.mult(gt._xy,obj_reg);
     int [] activeCols = activeData.activeCols(); // the active columns here refer to the predictors....

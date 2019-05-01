@@ -281,7 +281,7 @@ public class ArrayUtils {
     return a;
   }
   public static double[] add(double[] a, double b, int nclass, int[][] activeColAll, boolean addIntercept) {
-    int ii = addIntercept?1:0;
+    int ii = addIntercept?0:1;
     int offset = 0;
     for (int classInd=0; classInd<nclass; classInd++) {
       int[] activeCols = activeColAll[classInd];
@@ -1414,6 +1414,23 @@ public class ArrayUtils {
   public static double [] subtract (double [] a, double [] b) {
     double [] c = MemoryManager.malloc8d(a.length);
     subtract(a,b,c);
+    return c;
+  }
+
+  public static double [] subtract (double [] a, double [] b, int[][] activeColsAll) {
+    double [] c = MemoryManager.malloc8d(a.length);
+    int numClass = activeColsAll.length;
+    int offset = 0;
+    int colIndOffset = 0;
+    for (int classInd=0; classInd < numClass; classInd++) {
+      int classLen = activeColsAll[classInd].length;
+      for (int i =0; i<classLen; i++) {
+        int trueInd = activeColsAll[classInd][i]+colIndOffset;
+        c[trueInd] = a[trueInd]-b[i+offset];
+      }
+      offset += classLen;
+      colIndOffset += activeColsAll[classInd][classLen-1]+1;
+    }
     return c;
   }
 
