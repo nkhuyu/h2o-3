@@ -1530,7 +1530,8 @@ class {}Wrapper({}, MetricFunc, object):
     # Reference
     return "python:{}={}".format(dest_key, class_name)
 
-  def upload_custom_distribution(func, func_file="distributions.py", func_name=None, class_name=None, source_provider=None):
+
+def upload_custom_distribution(func, func_file="distributions.py", func_name=None, class_name=None, source_provider=None):
     import tempfile
     import inspect
 
