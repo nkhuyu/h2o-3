@@ -46,6 +46,35 @@ class H2OFrame(object):
     H2OFrame is similar to pandas' ``DataFrame``, or R's ``data.frame``. One of the critical distinction is that the
     data is generally not held in memory, instead it is located on a (possibly remote) H2O cluster, and thus
     ``H2OFrame`` represents a mere handle to that data.
+
+    Create a new H2OFrame object, possibly from some other object.
+
+    :param python_obj: object that will be converted to an ``H2OFrame``. This could have multiple types:
+
+        - None: create an empty H2OFrame
+        - A list/tuple of strings or numbers: create a single-column H2OFrame containing the contents of this list.
+        - A dictionary of ``{name: list}`` pairs: create an H2OFrame with multiple columns, each column having the
+            provided ``name`` and contents from ``list``. If the source dictionary is not an OrderedDict, then the
+            columns in the H2OFrame may appear shuffled.
+        - A list of lists of strings/numbers: construct an H2OFrame from a rectangular table of values, with inner
+            lists treated as rows of the table. I.e. ``H2OFrame([[1, 'a'], [2, 'b'], [3, 'c']])`` will create a
+            frame with 3 rows and 2 columns, one numeric and one string.
+        - A Pandas dataframe, or a Numpy ndarray: create a matching H2OFrame.
+        - A Scipy sparse matrix: create a matching sparse H2OFrame.
+
+    :param int header: if ``python_obj`` is a list of lists, this parameter can be used to indicate whether the
+        first row of the data represents headers. The value of -1 means the first row is data, +1 means the first
+        row is the headers, 0 (default) allows H2O to guess whether the first row contains data or headers.
+    :param List[str] column_names: explicit list of column names for the new H2OFrame. This will override any
+        column names derived from the data. If the python_obj does not contain explicit column names, and this
+        parameter is not given, then the columns will be named "C1", "C2", "C3", etc.
+    :param column_types: explicit column types for the new H2OFrame. This could be either a list of types for
+        each column, or a dictionary of {column name: column type} pairs. In the latter case you may override
+        types for only few columns, and let H2O choose the types of the rest.
+    :param na_strings: List of strings in the input data that should be interpreted as missing values. This could
+        be given on a per-column basis, either as a list-of-lists, or as a dictionary {column name: list of nas}.
+    :param str destination_frame: (internal) name of the target DKV key in the H2O backend.
+    :param str separator: (deprecated)
     """
 
     # Temp flag: set this to false for now if encountering path conversion/expansion issues when import files to remote server
@@ -57,36 +86,7 @@ class H2OFrame(object):
 
     def __init__(self, python_obj=None, destination_frame=None, header=0, separator=",",
                  column_names=None, column_types=None, na_strings=None, skipped_columns=None):
-        """
-        Create a new H2OFrame object, possibly from some other object.
-
-        :param python_obj: object that will be converted to an ``H2OFrame``. This could have multiple types:
-
-            - None: create an empty H2OFrame
-            - A list/tuple of strings or numbers: create a single-column H2OFrame containing the contents of this list.
-            - A dictionary of ``{name: list}`` pairs: create an H2OFrame with multiple columns, each column having the
-                provided ``name`` and contents from ``list``. If the source dictionary is not an OrderedDict, then the
-                columns in the H2OFrame may appear shuffled.
-            - A list of lists of strings/numbers: construct an H2OFrame from a rectangular table of values, with inner
-                lists treated as rows of the table. I.e. ``H2OFrame([[1, 'a'], [2, 'b'], [3, 'c']])`` will create a
-                frame with 3 rows and 2 columns, one numeric and one string.
-            - A Pandas dataframe, or a Numpy ndarray: create a matching H2OFrame.
-            - A Scipy sparse matrix: create a matching sparse H2OFrame.
-
-        :param int header: if ``python_obj`` is a list of lists, this parameter can be used to indicate whether the
-            first row of the data represents headers. The value of -1 means the first row is data, +1 means the first
-            row is the headers, 0 (default) allows H2O to guess whether the first row contains data or headers.
-        :param List[str] column_names: explicit list of column names for the new H2OFrame. This will override any
-            column names derived from the data. If the python_obj does not contain explicit column names, and this
-            parameter is not given, then the columns will be named "C1", "C2", "C3", etc.
-        :param column_types: explicit column types for the new H2OFrame. This could be either a list of types for
-            each column, or a dictionary of {column name: column type} pairs. In the latter case you may override
-            types for only few columns, and let H2O choose the types of the rest.
-        :param na_strings: List of strings in the input data that should be interpreted as missing values. This could
-            be given on a per-column basis, either as a list-of-lists, or as a dictionary {column name: list of nas}.
-        :param str destination_frame: (internal) name of the target DKV key in the H2O backend.
-        :param str separator: (deprecated)
-        """
+    
         coltype = U(None, "unknown", "uuid", "string", "float", "real", "double", "int", "numeric",
                     "categorical", "factor", "enum", "time")
         assert_is_type(python_obj, None, list, tuple, dict, numpy_ndarray, pandas_dataframe, scipy_sparse)
@@ -1283,7 +1283,6 @@ class H2OFrame(object):
             else:
                 print("num {}".format(" ".join(it[0] if it else "nan" for it in h2o.as_list(self[:10, i], False)[1:])))
 
-
     def as_data_frame(self, use_pandas=True, header=True):
         """
         Obtain the dataset as a python-local object.
@@ -1295,11 +1294,12 @@ class H2OFrame(object):
 
         :returns: A python object (a list of lists of strings, each list is a row, if use_pandas=False, otherwise
             a pandas DataFrame) containing this H2OFrame instance's data.
-        """
+        """ 
         if can_use_pandas() and use_pandas:
             import pandas
             return pandas.read_csv(StringIO(self.get_frame_data()), low_memory=False, skip_blank_lines=False)
-        frame = [row for row in csv.reader(StringIO(self.get_frame_data()))]
+        from h2o.utils.csv.readers import reader
+        frame = [row for row in reader(StringIO(self.get_frame_data()))]
         if not header:
             frame.pop(0)
         return frame
@@ -2536,7 +2536,18 @@ class H2OFrame(object):
             plt.xlabel(self.names[0])
             plt.ylabel("Frequency")
             plt.title("Histogram of %s" % self.names[0])
-            plt.bar(left=lefts, width=widths, height=counts, bottom=0)
+
+            # matplotlib deprecated "left" arg in 2.1.0 and removed in 3.0.0
+            version_number = matplotlib.__version__
+            major = version_number.split('.')[0]
+            minor = version_number.split('.')[1]
+            major = int(major)
+            minor = int(minor)
+            if major == 2 and minor >= 1 or major >= 3:
+                plt.bar(x=lefts, width=widths, height=counts, bottom=0)
+            else:
+                plt.bar(left=lefts, height=counts, width=widths, bottom=0)
+
             if not server:
                 plt.show()
         else:

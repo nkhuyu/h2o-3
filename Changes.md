@@ -2,6 +2,57 @@
 
 ## H2O
 
+### Yates (3.24.0.3) - 5/7/2019
+
+Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-yates/3/index.html'>http://h2o-release.s3.amazonaws.com/h2o/rel-yates/3/index.html</a>
+
+<h4>Bug</h4>
+
+<ul>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-5969'>PUBDEV-5969</a>] - Updated H2O-3 Plotting Functionality to be Compatible with Matplotlib Version 3.0.0.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6384'>PUBDEV-6384</a>] - Flow now shows the correct long value of a seed.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6394'>PUBDEV-6394</a>] - Fixed an issue that cause Rapids string operations on enum (categorical) columns to yield counterintuitive results.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6402'>PUBDEV-6402</a>] - Fixed an issue that caused monotonicity constraint in XGBoost to fail with certain parameters
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6408'>PUBDEV-6408</a>] - Fixed an ArrayIndexOutOfBounds error. that occurred when parsing quotes in CSV files.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6416'>PUBDEV-6416</a>] - Fixed an error with Grid Search that caused the API to print errors not related to model CURRENTLY being added to the grid, but for all previous failures. This occurred even when the model was not added to the grid due to failure.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6431'>PUBDEV-6431</a>] - Fixed an exception that occurred when requesting Jobs from h2o.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6439'>PUBDEV-6439</a>] - When using Python 2.7, fixed an issue with non-ascii character handling in the as_data_frame() method. 
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6449'>PUBDEV-6449</a>] - Predicting on a dataset that has a response column with domain in a different order no longer leads to memory leaks.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6451'>PUBDEV-6451</a>] - Fixed an issue with retrieving details of a GLM model in Flow due to lack of support for long seeds.
+</li>
+</ul>
+
+<h4>Improvement</h4>
+
+<ul>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6419'>PUBDEV-6419</a>] - Simplified the directory structure of logs within downloaded zip archives.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6428'>PUBDEV-6428</a>] - Upgrades XGBoost to latest stable build.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6435'>PUBDEV-6435</a>] - Users can how import and upload MOJOs in R and Python using `import_mojo()` and `upload_mojo()`. 
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6450'>PUBDEV-6450</a>] - It is now possible to retrieve a list of features from a trained model.
+</li>
+</ul>
+      
+<h4>Docs</h4>
+
+<ul>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6024'>PUBDEV-6024</a>] - Enhanced the GBM Reproducibility FAQ.
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6456'>PUBDEV-6456</a>] - Added information about the Target Encoding smoothing parameter to the User Guide. 
+</li>
+</ul>
+
 ### Yates (3.24.0.2) - 4/16/2019
 
 Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-yates/2/index.html'>http://h2o-release.s3.amazonaws.com/h2o/rel-yates/2/index.html</a>
@@ -74,6 +125,8 @@ Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-yates/1/index.
 <li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6230'>PUBDEV-6230</a>] - Removed elipses after the H2O server link when launching the Python client.
 </li>
 <li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6231'>PUBDEV-6231</a>] - In Deep Learning, fixed an issue that occurred when running one-hot-encoding on categoricals. 
+</li>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6262'>PUBDEV-6262</a>] - When running GBM in R without specifically setting a seed, users can now extract the seed that was used to build the model and reproduce that model. 
 </li>
 <li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-6266'>PUBDEV-6266</a>] - In predictions, fixed an issue that resulted in a "Categorical value out of bounds error" when calling a model.
 </li>
@@ -2519,6 +2572,23 @@ then imported.
 </li>
 </ul>
 
+### Vapnik (3.12.0.1) 6/6/2017
+
+Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-vapnik/1/index.html'>http://h2o-release.s3.amazonaws.com/h2o/rel-vapnik/1/index.html</a>
+
+<h4>Epic</h4>
+
+<ul>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4273'>PUBDEV-4273</a>] - AutoML is now available in H2O. AutoML can be used for automatically training and tuning a number of models within a user-specified time limit or model limit. It is designed to run with as few parameters as possible, and the top performing models can be viewed on a leaderboard. More information about AutoML is available <a href='http://docs.h2o.ai/h2o/latest-stable/h2o-docs/automl.html'>here</a>.
+</li>
+</ul>
+
+<h4>New Feature</h4>
+
+<ul>
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4451'>PUBDEV-4451</a>] - With the addition of the AutoML feature, a new **Run AutoML** option is available in Flow under the **Models** dropdown menu.</li>
+</ul>
+
 
 ### Vajda (3.10.5.4) - 7/17/2017
 
@@ -2527,7 +2597,7 @@ Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-vajda/4/index.
 
 <h4>Bug</h4>
 <ul>
-<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4694'>PUBDEV-4694</a>] -         Tree Algos are wasting memory by storing categorical values in every tree
+<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4694'>PUBDEV-4694</a>] - Fixed an issue that caused tree algos to waste memory by storing categorical values in every tree.
 </li>
 </ul>
 
@@ -2673,7 +2743,7 @@ Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-vajda/1/index.
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3900'>PUBDEV-3900</a>] - Jenkins builds no longer all share the same R package directory, and new H2O R libraries are installed during testing. </li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3905'>PUBDEV-3905</a>] -  When trimming is done, H2O now checks if it passes the beginning of the string. This check prevents the code from going further down the memory with negative indexes.</li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3973'>PUBDEV-3973</a>] - Stacked Ensembles no longer fails when the `fold_assignment` for base learners is not `Modulo`. </li>
-	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3988']PUBDEV-3988</a>] - Fixed an issue that caused H2O to generate invalid code in POJO for PCA/SVM.</li>
+	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3988'>PUBDEV-3988</a>] - Fixed an issue that caused H2O to generate invalid code in POJO for PCA/SVM.</li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4079'>PUBDEV-4079</a>] - Instead of using random charset for getting bytes from strings, the source code now centralizes "byte extraction" in StringUtils. This prevents different build machines from using different default encoders.</li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4090'>PUBDEV-4090</a>] - When performing a Random Hyperparameter Search, if the model parameter seed is set to the default value but a search_criteria seed is not, then the model parameter seed will now be set to search_criteria seed+0, 1, 2, ..., model_number. Seeding the built models makes random hyperparameter searches more repeatable.</li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-4100'>PUBDEV-4100</a>] - Fixed a bad link that was included in the "A K/V Store for In-Memory Analytics, Part 2" blog.</li>
@@ -2788,8 +2858,8 @@ Download at: <a href='http://h2o-release.s3.amazonaws.com/h2o/rel-vajda/1/index.
 <h4> Improvement </h4>
 
 <ul>
-	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3088'>PUBDEV-3088</a>] - Improved error handling when users receive the follwoing error:
-`Error: lexical error: invalid char in json text. <html> <head> <meta http-equiv= (right here) ------^`
+	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3088'>PUBDEV-3088</a>] - Improved error handling when users receive the following error:
+`Error: lexical error: invalid char in json text.
 	</li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3500'>PUBDEV-3500</a>] - In PCA, when the user specifies a value for k that is <=0, then all principal components will automatically be calculated.</li>
 	<li>[<a href='https://0xdata.atlassian.net/browse/PUBDEV-3908'>PUBDEV-3908</a>] - Exposed metalearner and base model keys in R/Py StackedEnsemble object.</li>

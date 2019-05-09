@@ -1036,10 +1036,11 @@ public class TestUtil extends Iced {
    * 
    * @param f1 Frame to be compared, not null
    * @param f2 Frame to be compared, not null
-   * @return True if matrices are precisely the same - number of columns, rows & values at each cell.
+   * @param delta tolerance
+   * @return True if frames are the same up to tolerance - number of columns, rows & values at each cell.
    * @throws IllegalStateException If any inequalities are found
    */
-  public static boolean compareFrames(final Frame f1, final Frame f2) throws IllegalStateException {
+  public static boolean compareFrames(final Frame f1, final Frame f2, double delta) throws IllegalStateException {
     Objects.requireNonNull(f1);
     Objects.requireNonNull(f2);
 
@@ -1055,10 +1056,38 @@ public class TestUtil extends Iced {
       final Vec f1Vec = f1.vec(vecNum);
       final Vec f2Vec = f2.vec(vecNum);
 
-      assertVecEquals(f1Vec, f2Vec, 0);
+      assertVecEquals(f1Vec, f2Vec, delta);
     }
 
     return true;
   }
+
+  public static boolean compareFrames(final Frame f1, final Frame f2) throws IllegalStateException {
+    return compareFrames(f1, f2, 0);
+  }
   
+  /**
+   * Sets a locale cluster-wide. Consider returning it back to the default value.
+   *
+   * @param locale Locale to set to the whole cluster
+   */
+  public static void setLocale(final Locale locale) {
+    new ChangeLocaleTsk(locale)
+            .doAllNodes();
+  }
+
+  private static class ChangeLocaleTsk extends MRTask<ChangeLocaleTsk> {
+
+    private final Locale _locale;
+
+    public ChangeLocaleTsk(Locale locale) {
+      this._locale = locale;
+    }
+
+    @Override
+    protected void setupLocal() {
+      Locale.setDefault(_locale);
+    }
+  }
+
 }

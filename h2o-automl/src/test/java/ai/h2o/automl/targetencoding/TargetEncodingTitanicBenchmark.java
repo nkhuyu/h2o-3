@@ -17,7 +17,9 @@ import static ai.h2o.automl.targetencoding.TargetEncoderFrameHelper.addKFoldColu
 
 /*
   Be aware that `smalldata/gbm_test/titanic_*.csv` files are not present in the repo. Replace with your own splits.
+  Note that this is a benchmark and we ignore tests from it as they should not affect builds
  */
+@Ignore("Ignoring benchmark tests")
 public class TargetEncodingTitanicBenchmark extends TestUtil {
 
 
